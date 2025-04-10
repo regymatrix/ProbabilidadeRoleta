@@ -35,6 +35,7 @@
             display: flex;
             justify-content: space-between;
             margin-bottom: 20px;
+            align-items: center;
         }
 
         .player-name {
@@ -76,12 +77,17 @@
             justify-content: center;
             font-size: 40px;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.3s;
             position: relative;
         }
 
         .dessert:hover {
             transform: scale(1.1);
+        }
+
+        .dessert.selected {
+            background-color: #a8e6a8;
+            box-shadow: 0 0 10px rgba(0, 200, 0, 0.5);
         }
 
         .dessert-count {
@@ -112,11 +118,12 @@
             border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
-            transition: background-color 0.3s;
+            transition: all 0.3s;
         }
 
         button:hover {
             background-color: #d35454;
+            transform: scale(1.05);
         }
 
         button.secondary {
@@ -127,12 +134,43 @@
             background-color: #3a2a24;
         }
 
+        button.option {
+            background-color: #f0e4d4;
+            color: #5a3e36;
+            border: 2px solid #e67e7e;
+            font-weight: bold;
+        }
+
+        button.option.selected {
+            background-color: #a8e6a8;
+            border-color: #2ecc71;
+        }
+
+        button.option.wrong {
+            background-color: #ffb3b3;
+            border-color: #e74c3c;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .question {
             background-color: #f0e4d4;
             padding: 15px;
             border-radius: 10px;
             margin-top: 20px;
             display: none;
+        }
+
+        .options-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
         }
 
         input[type="number"] {
@@ -158,6 +196,56 @@
         .hidden {
             display: none;
         }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .ranking-table th, .ranking-table td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        .ranking-table th {
+            background-color: #e67e7e;
+            color: white;
+        }
+
+        .ranking-table tr:nth-child(even) {
+            background-color: #f9f3e6;
+        }
+
+        .close-btn {
+            float: right;
+            cursor: pointer;
+            font-size: 20px;
+        }
     </style>
 </head>
 <body>
@@ -180,23 +268,54 @@
             <div class="controls">
                 <button id="generate-btn">Gerar Nova Roleta</button>
                 <button id="calculate-btn">Calcular Probabilidade</button>
+                <button id="ranking-btn" class="secondary">Ver Ranking</button>
             </div>
             
             <div class="question" id="question">
                 <h3>Desafio:</h3>
                 <p>Qual a probabilidade de pegar <span id="target-dessert">?</span>?</p>
-                <input type="number" id="answer" placeholder="Sua resposta em %" min="0" max="100">
+                
+                <div class="options-container" id="options-container">
+                    <!-- Opções serão geradas dinamicamente -->
+                </div>
+                
                 <button id="submit-btn">Verificar</button>
                 <div id="result"></div>
                 <div class="result-actions" id="result-actions">
                     <button id="continue-btn" class="secondary hidden">Continuar</button>
+                    <button id="restart-btn" class="secondary hidden">Reiniciar Jogo</button>
                     <button id="share-btn" class="secondary hidden">Compartilhar</button>
+                    <button id="save-score-btn" class="secondary hidden">Salvar Pontuação</button>
                 </div>
             </div>
             
             <div class="stats">
                 <p>Total de itens: <span id="total-items">0</span> | Moedas: <span id="coins">0</span> 🍬</p>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal do Ranking -->
+    <div class="modal" id="ranking-modal">
+        <div class="modal-content">
+            <span class="close-btn" id="close-ranking">&times;</span>
+            <h2>🏆 Top 10 Jogadores</h2>
+            <div id="ranking-list">
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th>Posição</th>
+                            <th>Nome</th>
+                            <th>Pontuação</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ranking-body">
+                        <!-- Ranking será preenchido por JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <button id="clear-ranking" class="secondary" style="margin-top: 15px;">Limpar Ranking</button>
         </div>
     </div>
 
@@ -210,20 +329,148 @@
             { emoji: "🍦", name: "Sorvete", baseProb: 0.25 }
         ];
 
+        // Variáveis do jogo
         let currentDesserts = [];
         let selectedDessert = null;
         let coins = 0;
         let score = 0;
+        let ranking = [];
+        let dessertElements = [];
+        let selectedOption = null;
+        let correctAnswer = 0;
 
         // Inicializa o jogo
         function initGame() {
+            // Carrega o ranking do localStorage
+            loadRanking();
+            
             generateNewRoulette();
             
+            // Event listeners
             document.getElementById('generate-btn').addEventListener('click', generateNewRoulette);
             document.getElementById('calculate-btn').addEventListener('click', generateQuestion);
             document.getElementById('submit-btn').addEventListener('click', checkAnswer);
             document.getElementById('continue-btn').addEventListener('click', continueGame);
+            document.getElementById('restart-btn').addEventListener('click', restartGame);
             document.getElementById('share-btn').addEventListener('click', shareScore);
+            document.getElementById('save-score-btn').addEventListener('click', saveScore);
+            document.getElementById('ranking-btn').addEventListener('click', showRanking);
+            document.getElementById('close-ranking').addEventListener('click', hideRanking);
+            document.getElementById('clear-ranking').addEventListener('click', clearRanking);
+        }
+
+        // Carrega o ranking do localStorage
+        function loadRanking() {
+            const savedRanking = localStorage.getItem('dessertGameRanking');
+            if (savedRanking) {
+                ranking = JSON.parse(savedRanking);
+            } else {
+                ranking = [];
+            }
+            updateRankingDisplay();
+        }
+
+        // Salva o ranking no localStorage
+        function saveRanking() {
+            localStorage.setItem('dessertGameRanking', JSON.stringify(ranking));
+        }
+
+        // Atualiza a exibição do ranking
+        function updateRankingDisplay() {
+            const rankingBody = document.getElementById('ranking-body');
+            rankingBody.innerHTML = '';
+            
+            // Ordena o ranking por pontuação (maior primeiro)
+            const sortedRanking = [...ranking].sort((a, b) => b.score - a.score);
+            
+            // Mostra apenas os top 10
+            const top10 = sortedRanking.slice(0, 10);
+            
+            top10.forEach((player, index) => {
+                const row = document.createElement('tr');
+                
+                const positionCell = document.createElement('td');
+                positionCell.textContent = index + 1;
+                row.appendChild(positionCell);
+                
+                const nameCell = document.createElement('td');
+                nameCell.textContent = player.name;
+                row.appendChild(nameCell);
+                
+                const scoreCell = document.createElement('td');
+                scoreCell.textContent = player.score;
+                row.appendChild(scoreCell);
+                
+                const dateCell = document.createElement('td');
+                dateCell.textContent = new Date(player.date).toLocaleDateString();
+                row.appendChild(dateCell);
+                
+                rankingBody.appendChild(row);
+            });
+        }
+
+        // Mostra o modal do ranking
+        function showRanking() {
+            document.getElementById('ranking-modal').style.display = 'flex';
+        }
+
+        // Esconde o modal do ranking
+        function hideRanking() {
+            document.getElementById('ranking-modal').style.display = 'none';
+        }
+
+        // Limpa o ranking
+        function clearRanking() {
+            if (confirm('Tem certeza que deseja limpar todo o ranking?')) {
+                ranking = [];
+                saveRanking();
+                updateRankingDisplay();
+            }
+        }
+
+        // Salva a pontuação atual no ranking
+        function saveScore() {
+            const playerName = document.getElementById('player-name').value.trim();
+            
+            if (!playerName) {
+                alert("Por favor, digite seu nome para salvar sua pontuação!");
+                return;
+            }
+            
+            if (score === 0) {
+                alert("Sua pontuação é zero. Jogue mais para conseguir pontos!");
+                return;
+            }
+            
+            // Verifica se o jogador já está no ranking
+            const existingPlayerIndex = ranking.findIndex(p => p.name.toLowerCase() === playerName.toLowerCase());
+            
+            if (existingPlayerIndex !== -1) {
+                // Atualiza a pontuação se for maior
+                if (score > ranking[existingPlayerIndex].score) {
+                    ranking[existingPlayerIndex].score = score;
+                    ranking[existingPlayerIndex].date = new Date().toISOString();
+                    alert(`Pontuação atualizada para ${playerName}!`);
+                } else {
+                    alert(`${playerName}, você já tem uma pontuação maior (${ranking[existingPlayerIndex].score} pontos). Tente novamente!`);
+                    return;
+                }
+            } else {
+                // Adiciona novo jogador ao ranking
+                ranking.push({
+                    name: playerName,
+                    score: score,
+                    date: new Date().toISOString()
+                });
+                alert(`Pontuação de ${score} salva para ${playerName}!`);
+            }
+            
+            // Salva o ranking e atualiza a exibição
+            saveRanking();
+            updateRankingDisplay();
+            
+            // Desativa o botão de salvar pontuação
+            document.getElementById('save-score-btn').disabled = true;
         }
 
         // Gera uma nova roleta com quantidades aleatórias
@@ -232,6 +479,7 @@
             dessertsContainer.innerHTML = '';
             currentDesserts = [];
             selectedDessert = null;
+            dessertElements = [];
             
             // Para cada tipo de sobremesa, decide quantas instâncias colocar (1-3)
             dessertTypes.forEach(type => {
@@ -289,7 +537,7 @@
             const dessertsContainer = document.getElementById('desserts');
             const countMap = {};
             
-            currentDesserts.forEach(dessert => {
+            currentDesserts.forEach((dessert, index) => {
                 if (!countMap[dessert.name]) {
                     countMap[dessert.name] = 0;
                 }
@@ -297,10 +545,14 @@
                 
                 const dessertElement = document.createElement('div');
                 dessertElement.className = 'dessert';
+                dessertElement.dataset.index = index;
                 dessertElement.innerHTML = `${dessert.emoji}<span class="dessert-count">${countMap[dessert.name]}</span>`;
                 dessertElement.title = `${dessert.name} (${Math.round(dessert.realProbability * 100)}% chance)`;
-                dessertElement.addEventListener('click', () => selectDessert(dessert));
+                dessertElement.addEventListener('click', () => selectDessert(dessert, index));
                 dessertsContainer.appendChild(dessertElement);
+                
+                // Armazena referência ao elemento
+                dessertElements[index] = dessertElement;
             });
         }
 
@@ -312,17 +564,32 @@
         }
 
         // Seleciona uma sobremesa
-        function selectDessert(dessert) {
+        function selectDessert(dessert, index) {
+            // Remove seleção anterior
+            if (selectedDessert) {
+                const previousSelected = currentDesserts
+                    .map((d, i) => (d.name === selectedDessert.name) ? i : -1)
+                    .filter(i => i !== -1);
+                
+                previousSelected.forEach(i => {
+                    dessertElements[i].classList.remove('selected');
+                });
+            }
+            
+            // Seleciona nova sobremesa
             selectedDessert = dessert;
-            alert(`Você escolheu: ${dessert.name}!\nHá ${countDesserts(dessert.name)} ${dessert.name}(s) na roleta.`);
+            
+            // Destaca todos os itens do mesmo tipo
+            const sameTypeIndexes = currentDesserts
+                .map((d, i) => (d.name === dessert.name) ? i : -1)
+                .filter(i => i !== -1);
+            
+            sameTypeIndexes.forEach(i => {
+                dessertElements[i].classList.add('selected');
+            });
         }
 
-        // Conta quantas sobremesas de um tipo existem
-        function countDesserts(name) {
-            return currentDesserts.filter(d => d.name === name).length;
-        }
-
-        // Gera uma pergunta de probabilidade
+        // Gera uma pergunta de probabilidade com opções
         function generateQuestion() {
             if (currentDesserts.length === 0) {
                 alert("Gere uma roleta primeiro!");
@@ -337,44 +604,129 @@
             const targetElement = document.getElementById('target-dessert');
             targetElement.textContent = selectedDessert.name;
             
+            // Calcula a resposta correta
+            correctAnswer = Math.round(selectedDessert.realProbability * 100);
+            
+            // Gera opções de resposta
+            generateOptions(correctAnswer);
+            
             document.getElementById('question').style.display = 'block';
-            document.getElementById('answer').value = '';
             document.getElementById('result').textContent = '';
             document.getElementById('continue-btn').classList.add('hidden');
+            document.getElementById('restart-btn').classList.add('hidden');
             document.getElementById('share-btn').classList.add('hidden');
+            document.getElementById('save-score-btn').classList.add('hidden');
+            document.getElementById('save-score-btn').disabled = false;
+            selectedOption = null;
+        }
+
+        // Gera opções de resposta
+        function generateOptions(correct) {
+            const optionsContainer = document.getElementById('options-container');
+            optionsContainer.innerHTML = '';
+            
+            // Cria opções incorretas plausíveis
+            let options = [correct];
+            
+            // Adiciona opções próximas à correta (mas diferentes)
+            while (options.length < 4) {
+                let option;
+                do {
+                    const variation = Math.floor(Math.random() * 30) - 15; // -15 a +15
+                    option = Math.max(5, Math.min(95, correct + variation));
+                    option = Math.round(option / 5) * 5; // Arredonda para múltiplos de 5
+                } while (options.includes(option) || option === correct);
+                
+                options.push(option);
+            }
+            
+            // Embaralha as opções
+            options = shuffleArray(options);
+            
+            // Cria os botões de opção
+            options.forEach((option, index) => {
+                const optionBtn = document.createElement('button');
+                optionBtn.className = 'option';
+                optionBtn.textContent = `${option}%`;
+                optionBtn.dataset.value = option;
+                optionBtn.addEventListener('click', () => selectOption(optionBtn));
+                optionsContainer.appendChild(optionBtn);
+            });
+        }
+
+        // Seleciona uma opção de resposta
+        function selectOption(optionBtn) {
+            // Remove seleção anterior
+            const options = document.querySelectorAll('.option');
+            options.forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            
+            // Seleciona nova opção
+            optionBtn.classList.add('selected');
+            selectedOption = parseInt(optionBtn.dataset.value);
         }
 
         // Verifica a resposta do usuário
         function checkAnswer() {
-            const userAnswer = parseFloat(document.getElementById('answer').value);
-            const correctAnswer = Math.round(selectedDessert.realProbability * 100);
             const resultElement = document.getElementById('result');
             
-            if (isNaN(userAnswer)) {
-                resultElement.textContent = "Por favor, insira um número válido!";
+            if (selectedOption === null) {
+                resultElement.textContent = "Por favor, selecione uma opção!";
                 return;
             }
             
-            if (Math.abs(userAnswer - correctAnswer) <= 5) {
+            const options = document.querySelectorAll('.option');
+            
+            if (selectedOption === correctAnswer) {
                 resultElement.innerHTML = `<strong>Correto!</strong> A probabilidade é ${correctAnswer}% 🎉`;
                 score += 10;
                 coins += 5;
                 updateStats();
                 
+                // Destaca a opção correta
+                options.forEach(opt => {
+                    if (parseInt(opt.dataset.value) === correctAnswer) {
+                        opt.classList.add('selected');
+                    }
+                });
+                
                 // Mostra apenas o botão continuar
                 document.getElementById('continue-btn').classList.remove('hidden');
+                document.getElementById('restart-btn').classList.add('hidden');
                 document.getElementById('share-btn').classList.add('hidden');
+                document.getElementById('save-score-btn').classList.add('hidden');
             } else {
                 resultElement.innerHTML = `<strong>Ops!</strong> A resposta correta é ${correctAnswer}%.`;
                 
-                // Mostra ambos os botões
-                document.getElementById('continue-btn').classList.remove('hidden');
+                // Destaca a opção correta e marca a errada
+                options.forEach(opt => {
+                    const value = parseInt(opt.dataset.value);
+                    if (value === correctAnswer) {
+                        opt.classList.add('selected');
+                    } else if (value === selectedOption) {
+                        opt.classList.add('wrong');
+                    }
+                });
+                
+                // Mostra os botões de ação
+                document.getElementById('continue-btn').classList.add('hidden');
+                document.getElementById('restart-btn').classList.remove('hidden');
                 document.getElementById('share-btn').classList.remove('hidden');
+                document.getElementById('save-score-btn').classList.remove('hidden');
             }
         }
 
-        // Continua o jogo após resposta
+        // Continua o jogo após resposta correta
         function continueGame() {
+            document.getElementById('question').style.display = 'none';
+            generateNewRoulette();
+        }
+
+        // Reinicia o jogo completamente
+        function restartGame() {
+            score = 0;
+            updateStats();
             document.getElementById('question').style.display = 'none';
             generateNewRoulette();
         }

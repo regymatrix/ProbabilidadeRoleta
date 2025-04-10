@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roleta de Sobremesas - Probabilidade</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f9f3e6;
+            color: #5a3e36;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff8f0;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #e67e7e;
+        }
+
+        .game-area {
+            margin-top: 20px;
+        }
+
+        .player-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .player-name {
+            flex: 1;
+            margin-right: 10px;
+        }
+
+        .score-display {
+            background-color: #e67e7e;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        input[type="text"] {
+            padding: 8px;
+            width: 200px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .desserts-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            min-height: 100px;
+        }
+
+        .dessert {
+            width: 80px;
+            height: 80px;
+            background-color: #f5d6ba;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+        }
+
+        .dessert:hover {
+            transform: scale(1.1);
+        }
+
+        .dessert-count {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background-color: #e67e7e;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        button {
+            background-color: #e67e7e;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #d35454;
+        }
+
+        button.secondary {
+            background-color: #5a3e36;
+        }
+
+        button.secondary:hover {
+            background-color: #3a2a24;
+        }
+
+        .question {
+            background-color: #f0e4d4;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        input[type="number"] {
+            padding: 8px;
+            margin: 10px 0;
+            width: 60px;
+            text-align: center;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .result-actions {
+            margin-top: 15px;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0e4d4;
+            border-radius: 10px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍰 Roleta de Sobremesas 🍫</h1>
+        <p>Calcule a probabilidade de escolher sua sobremesa favorita!</p>
+        
+        <div class="player-info">
+            <div class="player-name">
+                <input type="text" id="player-name" placeholder="Digite seu nome" maxlength="20">
+            </div>
+            <div class="score-display">
+                Pontuação: <span id="score">0</span> pontos
+            </div>
+        </div>
+        
+        <div class="game-area">
+            <div class="desserts-container" id="desserts"></div>
+            
+            <div class="controls">
+                <button id="generate-btn">Gerar Nova Roleta</button>
+                <button id="calculate-btn">Calcular Probabilidade</button>
+            </div>
+            
+            <div class="question" id="question">
+                <h3>Desafio:</h3>
+                <p>Qual a probabilidade de pegar <span id="target-dessert">?</span>?</p>
+                <input type="number" id="answer" placeholder="Sua resposta em %" min="0" max="100">
+                <button id="submit-btn">Verificar</button>
+                <div id="result"></div>
+                <div class="result-actions" id="result-actions">
+                    <button id="continue-btn" class="secondary hidden">Continuar</button>
+                    <button id="share-btn" class="secondary hidden">Compartilhar</button>
+                </div>
+            </div>
+            
+            <div class="stats">
+                <p>Total de itens: <span id="total-items">0</span> | Moedas: <span id="coins">0</span> 🍬</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tipos básicos de sobremesas
+        const dessertTypes = [
+            { emoji: "🍰", name: "Bolo", baseProb: 0.3 },
+            { emoji: "🍫", name: "Chocolate", baseProb: 0.2 },
+            { emoji: "🍮", name: "Pudim", baseProb: 0.15 },
+            { emoji: "🍎", name: "Torta de Maçã", baseProb: 0.1 },
+            { emoji: "🍦", name: "Sorvete", baseProb: 0.25 }
+        ];
+
+        let currentDesserts = [];
+        let selectedDessert = null;
+        let coins = 0;
+        let score = 0;
+
+        // Inicializa o jogo
+        function initGame() {
+            generateNewRoulette();
+            
+            document.getElementById('generate-btn').addEventListener('click', generateNewRoulette);
+            document.getElementById('calculate-btn').addEventListener('click', generateQuestion);
+            document.getElementById('submit-btn').addEventListener('click', checkAnswer);
+            document.getElementById('continue-btn').addEventListener('click', continueGame);
+            document.getElementById('share-btn').addEventListener('click', shareScore);
+        }
+
+        // Gera uma nova roleta com quantidades aleatórias
+        function generateNewRoulette() {
+            const dessertsContainer = document.getElementById('desserts');
+            dessertsContainer.innerHTML = '';
+            currentDesserts = [];
+            selectedDessert = null;
+            
+            // Para cada tipo de sobremesa, decide quantas instâncias colocar (1-3)
+            dessertTypes.forEach(type => {
+                const count = Math.floor(Math.random() * 3) + 1; // 1 a 3 itens
+                
+                for (let i = 0; i < count; i++) {
+                    currentDesserts.push({
+                        ...type,
+                        id: `${type.name}-${i}` // Identificador único
+                    });
+                }
+            });
+            
+            // Embaralha as sobremesas
+            currentDesserts = shuffleArray(currentDesserts);
+            
+            // Calcula probabilidades reais baseadas na quantidade
+            calculateRealProbabilities();
+            
+            // Renderiza na tela
+            renderDesserts();
+            
+            // Atualiza estatísticas
+            updateStats();
+            
+            // Esconde a pergunta se estiver visível
+            document.getElementById('question').style.display = 'none';
+        }
+
+        // Embaralha um array
+        function shuffleArray(array) {
+            return array.sort(() => Math.random() - 0.5);
+        }
+
+        // Calcula probabilidades reais baseadas na quantidade de cada tipo
+        function calculateRealProbabilities() {
+            const countMap = {};
+            
+            // Conta quantas de cada tipo existem
+            currentDesserts.forEach(dessert => {
+                if (!countMap[dessert.name]) {
+                    countMap[dessert.name] = 0;
+                }
+                countMap[dessert.name]++;
+            });
+            
+            // Atualiza a probabilidade real de cada item
+            currentDesserts.forEach(dessert => {
+                dessert.realProbability = (1 / currentDesserts.length) * countMap[dessert.name];
+            });
+        }
+
+        // Renderiza as sobremesas na tela
+        function renderDesserts() {
+            const dessertsContainer = document.getElementById('desserts');
+            const countMap = {};
+            
+            currentDesserts.forEach(dessert => {
+                if (!countMap[dessert.name]) {
+                    countMap[dessert.name] = 0;
+                }
+                countMap[dessert.name]++;
+                
+                const dessertElement = document.createElement('div');
+                dessertElement.className = 'dessert';
+                dessertElement.innerHTML = `${dessert.emoji}<span class="dessert-count">${countMap[dessert.name]}</span>`;
+                dessertElement.title = `${dessert.name} (${Math.round(dessert.realProbability * 100)}% chance)`;
+                dessertElement.addEventListener('click', () => selectDessert(dessert));
+                dessertsContainer.appendChild(dessertElement);
+            });
+        }
+
+        // Atualiza as estatísticas na tela
+        function updateStats() {
+            document.getElementById('total-items').textContent = currentDesserts.length;
+            document.getElementById('score').textContent = score;
+            document.getElementById('coins').textContent = coins;
+        }
+
+        // Seleciona uma sobremesa
+        function selectDessert(dessert) {
+            selectedDessert = dessert;
+            alert(`Você escolheu: ${dessert.name}!\nHá ${countDesserts(dessert.name)} ${dessert.name}(s) na roleta.`);
+        }
+
+        // Conta quantas sobremesas de um tipo existem
+        function countDesserts(name) {
+            return currentDesserts.filter(d => d.name === name).length;
+        }
+
+        // Gera uma pergunta de probabilidade
+        function generateQuestion() {
+            if (currentDesserts.length === 0) {
+                alert("Gere uma roleta primeiro!");
+                return;
+            }
+            
+            if (!selectedDessert) {
+                alert("Escolha uma sobremesa primeiro!");
+                return;
+            }
+            
+            const targetElement = document.getElementById('target-dessert');
+            targetElement.textContent = selectedDessert.name;
+            
+            document.getElementById('question').style.display = 'block';
+            document.getElementById('answer').value = '';
+            document.getElementById('result').textContent = '';
+            document.getElementById('continue-btn').classList.add('hidden');
+            document.getElementById('share-btn').classList.add('hidden');
+        }
+
+        // Verifica a resposta do usuário
+        function checkAnswer() {
+            const userAnswer = parseFloat(document.getElementById('answer').value);
+            const correctAnswer = Math.round(selectedDessert.realProbability * 100);
+            const resultElement = document.getElementById('result');
+            
+            if (isNaN(userAnswer)) {
+                resultElement.textContent = "Por favor, insira um número válido!";
+                return;
+            }
+            
+            if (Math.abs(userAnswer - correctAnswer) <= 5) {
+                resultElement.innerHTML = `<strong>Correto!</strong> A probabilidade é ${correctAnswer}% 🎉`;
+                score += 10;
+                coins += 5;
+                updateStats();
+                
+                // Mostra apenas o botão continuar
+                document.getElementById('continue-btn').classList.remove('hidden');
+                document.getElementById('share-btn').classList.add('hidden');
+            } else {
+                resultElement.innerHTML = `<strong>Ops!</strong> A resposta correta é ${correctAnswer}%.`;
+                
+                // Mostra ambos os botões
+                document.getElementById('continue-btn').classList.remove('hidden');
+                document.getElementById('share-btn').classList.remove('hidden');
+            }
+        }
+
+        // Continua o jogo após resposta
+        function continueGame() {
+            document.getElementById('question').style.display = 'none';
+            generateNewRoulette();
+        }
+
+        // Compartilha a pontuação no WhatsApp
+        function shareScore() {
+            const playerName = document.getElementById('player-name').value.trim();
+            
+            if (!playerName) {
+                alert("Por favor, digite seu nome para compartilhar!");
+                return;
+            }
+            
+            const message = `*${playerName}* jogou Roleta de Sobremesas e fez *${score} pontos*! 🎉\n\nA pontuação no jogo Probabilidade foi de: ${score} pontos\n\nQuer tentar bater meu recorde?`;
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+            
+            window.open(whatsappUrl, '_blank');
+        }
+
+        // Inicia o jogo quando a página carrega
+        window.onload = initGame;
+    </script>
+</body>
+</html>
